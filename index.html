@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claims Oversight Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a claims-review workstation. The incoming memo and the review form sit on the left, the printed quarter statement on the right.
+   On phones it stacks memo, statement, form, with the confirm bar pinned to the bottom. */
+:root{
+  --paper:#edf1f0; --sheet:#fbfcfc; --well:#e3e9e7; --ink:#13222a; --ink-2:#52626b; --rule:#cfd8d5;
+  --accent:#1e5d64; --accent-ink:#ffffff; --accent-soft:#d6e8e9;
+  --stamp:#b0362b; --ok:#2a7550; --caution:#95600c;
+  --ok-soft:#dbeee3; --caution-soft:#f4e6cc; --stamp-soft:#f5dcd8;
+  --s1:#1e5d64; --s2:#c4661a; --s3:#8b989e;
+  --shadow:0 1px 2px rgba(19,34,42,.06),0 4px 14px rgba(19,34,42,.05);
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:12px; --r-sm:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0e1417; --sheet:#162026; --well:#1e2a30; --ink:#e4ebed; --ink-2:#98a7ad; --rule:#2a373d;
+    --accent:#6db3b9; --accent-ink:#0b1719; --accent-soft:#1c3438;
+    --stamp:#ef7b6d; --ok:#6bc192; --caution:#e0a44a;
+    --ok-soft:#183026; --caution-soft:#33281a; --stamp-soft:#3a201d;
+    --s1:#6db3b9; --s2:#f0a25a; --s3:#7c8a91;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0e1417; --sheet:#162026; --well:#1e2a30; --ink:#e4ebed; --ink-2:#98a7ad; --rule:#2a373d;
+  --accent:#6db3b9; --accent-ink:#0b1719; --accent-soft:#1c3438;
+  --stamp:#ef7b6d; --ok:#6bc192; --caution:#e0a44a;
+  --ok-soft:#183026; --caution-soft:#33281a; --stamp-soft:#3a201d;
+  --s1:#6db3b9; --s2:#f0a25a; --s3:#7c8a91;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--f-body)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 128px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0;letter-spacing:-.005em}
+h1{font-size:clamp(2rem,5vw,3.1rem);font-weight:700}
+h2{font-size:1.35rem;font-weight:600}
+h3{font-size:1.05rem;font-weight:600}
+p{margin:0}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.muted{color:var(--ink-2)} .small{font-size:.86rem}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r);padding:18px;box-shadow:var(--shadow);min-width:0}
+.panel>h2,.panel>h3{margin-bottom:10px}
+.btn{font:600 .95rem/1 var(--f-body);border-radius:999px;padding:12px 20px;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);cursor:pointer;transition:transform .12s ease,background .15s ease,opacity .15s}
+.btn:hover:not(:disabled){transform:translateY(-1px)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.lg{padding:15px 26px;font-size:1.02rem}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- intro ---------- */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center;padding-block:18px 26px}
+.hero .lead{font-size:1.15rem;max-width:34em;margin:14px 0 22px;color:var(--ink)}
+.factsheet{margin:0;background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.factsheet .fs-head{display:flex;justify-content:space-between;gap:10px;padding:10px 16px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-mono);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}
+.factsheet dl{margin:0;padding:6px 16px 10px}
+.factsheet dl div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed var(--rule)}
+.factsheet dl div:last-child{border-bottom:0}
+.factsheet dt{color:var(--ink-2);font-size:.9rem}
+.factsheet dd{margin:0;font-family:var(--f-mono);font-weight:500;text-align:right}
+.cols3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cols3 ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+.startrow{display:flex;justify-content:center;padding-top:22px}
+
+/* ---------- quarter header ---------- */
+.topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .mark{width:36px;height:36px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:700 .9rem var(--f-display);letter-spacing:.02em}
+.brand b{display:block;font-family:var(--f-display);font-size:1.05rem}
+.brand span{font-size:.8rem;color:var(--ink-2)}
+.steps{display:flex;gap:4px;list-style:none;margin:0;padding:0}
+.steps li{min-width:34px;padding:5px 0;text-align:center;border-radius:6px;font:500 .74rem var(--f-mono);color:var(--ink-2);background:var(--well)}
+.steps li.done{background:var(--accent-soft);color:var(--accent)}
+.steps li.now{background:var(--accent);color:var(--accent-ink)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px;scrollbar-width:none}
+.chip{flex:none;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:var(--sheet);border:1px solid var(--rule);font-size:.82rem;white-space:nowrap}
+.chip b{font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--s3);flex:none}
+.dot.t-good{background:var(--ok)} .dot.t-warn{background:var(--caution)} .dot.t-bad{background:var(--stamp)}
+
+/* ---------- quarter layout ---------- */
+.qgrid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);grid-template-areas:"ev rep" "lev rep";grid-template-rows:auto 1fr;gap:16px;align-items:start}
+.qgrid .ev{grid-area:ev}.qgrid .rep{grid-area:rep}.qgrid .lev{grid-area:lev}
+
+/* memo (event) */
+.memo{background:var(--sheet);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.memo-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 18px;background:var(--caution-soft);color:var(--caution);font:600 .74rem var(--f-mono);letter-spacing:.07em;text-transform:uppercase}
+.memo-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:10px}
+.memo-body>p{max-width:62ch}
+.choices{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.choice{display:grid;gap:3px;text-align:left;width:100%;padding:13px 15px;border-radius:var(--r-sm);border:1px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.choice:hover{border-color:var(--accent);background:var(--accent-soft)}
+.choice b{font-weight:600}
+.choice .d{font-size:.88rem;color:var(--ink-2)}
+.cost{font:500 .78rem var(--f-mono);color:var(--accent)}
+.outcome{background:var(--paper);border-radius:var(--r-sm);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+
+/* impact list */
+.impacts{list-style:none;padding:0;margin:0;display:flex;flex-direction:column}
+.impacts li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;padding:11px 0;border-top:1px solid var(--rule)}
+.impacts li:first-child{border-top:0;padding-top:4px}
+.impacts .area{font-weight:600;font-size:.92rem}
+.impacts .txt{grid-column:1/-1;font-size:.92rem;color:var(--ink-2)}
+.impacts.mini li{padding:7px 0}
+.pill{justify-self:end;font:600 .68rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.pill.t-good{background:var(--ok-soft);color:var(--ok)} .pill.t-warn{background:var(--caution-soft);color:var(--caution)} .pill.t-bad{background:var(--stamp-soft);color:var(--stamp)}
+.notes{font-size:.88rem;color:var(--ink-2);margin:-4px 0 8px}
+
+/* money ledger */
+.ledger{width:100%;border-collapse:collapse;font-size:.9rem}
+.ledger td{padding:6px 0;border-bottom:1px dashed var(--rule)}
+.ledger td:last-child{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:12px}
+.ledger tr.total td{border-bottom:0;border-top:2px solid var(--ink);font-weight:600;padding-top:9px}
+.ledger tr.plan td{border-bottom:0;color:var(--ink-2)}
+.pos{color:var(--ok)} .neg{color:var(--ink)}
+.badge{display:inline-block;font:600 .68rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.badge.t-good{background:var(--ok-soft);color:var(--ok)} .badge.t-bad{background:var(--stamp-soft);color:var(--stamp)}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpi{background:var(--paper);border-radius:var(--r-sm);padding:10px 12px;min-width:0}
+.kpi .k{font:500 .7rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.kpi .v{font:600 1.35rem var(--f-display);margin:2px 0}
+.kpi .s{font-size:.78rem;color:var(--ink-2)}
+.kpi .v.t-warn{color:var(--caution)} .kpi .v.t-bad{color:var(--stamp)} .kpi .v.t-good{color:var(--ok)}
+
+/* charts */
+.chart h3{margin-bottom:2px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78rem;color:var(--ink-2);margin:6px 0 6px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+canvas{display:block;width:100%;height:180px}
+
+/* levers */
+.lev h2{margin-bottom:4px}
+.notice{padding:10px 12px;border-radius:var(--r-sm);font-size:.9rem;background:var(--accent-soft);color:var(--ink);margin-top:10px}
+.notice.bad{background:var(--stamp-soft)}
+.lever,.ev{scroll-margin-top:16px}
+.lever{border:0;margin:16px 0 0;padding:18px 0 0;box-shadow:inset 0 1px 0 var(--rule);min-width:0}
+.lever legend{float:left;width:100%;padding-bottom:4px}
+.lever legend+*{clear:both}
+.lever legend{display:flex;align-items:center;gap:10px;padding:0;font:600 1.05rem var(--f-display)}
+.lnum{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font:600 .74rem var(--f-mono);background:var(--well);color:var(--ink-2)}
+.lever.done .lnum{background:var(--accent);color:var(--accent-ink)}
+.help{font-size:.86rem;color:var(--ink-2);margin:6px 0 10px;max-width:62ch}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.opt{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:2px 10px;align-content:start;padding:12px 13px;border:1px solid var(--rule);border-radius:var(--r-sm);background:var(--sheet);cursor:pointer;transition:border-color .15s,background .15s}
+.opt:hover{border-color:var(--accent)}
+.opt input{position:absolute;opacity:0;pointer-events:none}
+.opt .radio{grid-row:1/span 3;width:18px;height:18px;margin-top:2px;border-radius:50%;border:2px solid var(--rule);background:var(--sheet);transition:border-color .15s,box-shadow .15s}
+.opt .n{font-weight:600;font-size:.95rem}
+.opt .d{font-size:.84rem;color:var(--ink-2)}
+.opt .cost{margin-top:4px}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opt:has(input:checked) .radio{border-color:var(--accent);box-shadow:inset 0 0 0 4px var(--sheet);background:var(--accent)}
+.opt:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.opt:has(input:disabled){opacity:.45;cursor:not-allowed}
+.lastq{position:absolute;top:-8px;right:10px;font:600 .62rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent);background:var(--sheet);border:1px solid var(--accent);border-radius:999px;padding:1px 7px}
+
+/* confirm bar */
+.confirm{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--sheet);border-top:1px solid var(--rule);box-shadow:0 -6px 18px rgba(0,0,0,.06);padding-block:12px calc(12px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.confirm-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.progress{display:flex;align-items:center;gap:10px;font-size:.88rem;color:var(--ink-2);min-width:0}
+.linkbtn{border:0;background:none;padding:6px 0;font:inherit;color:var(--ink-2);cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px}
+.pbar{width:90px;height:6px;border-radius:3px;background:var(--well);overflow:hidden;flex:none}
+.pbar span{display:block;height:100%;background:var(--accent);transition:width .2s}
+
+/* ---------- debrief ---------- */
+.verdict{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:22px;border-radius:var(--r);background:var(--sheet);border:1px solid var(--rule);box-shadow:var(--shadow);margin-bottom:16px}
+.verdict p{margin-top:8px;max-width:60ch}
+.scorebox{text-align:center;position:relative;padding:6px 10px}
+.scorebox .big{display:block;font:700 4rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.scorebox .of{font-size:.82rem;color:var(--ink-2)}
+.stamp{display:inline-block;transform:rotate(-6deg);border:3px solid currentColor;border-radius:6px;padding:3px 10px;font:700 .95rem var(--f-mono);letter-spacing:.14em;margin-bottom:8px}
+.stamp.lost{color:var(--stamp)} .stamp.won{color:var(--ok)}
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.dgrid.full{grid-template-columns:minmax(0,1fr)}
+.society{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.society b{font-weight:600}
+.news{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:8px}
+.news li{padding:10px 12px;border-radius:var(--r-sm);background:var(--paper);font:600 .98rem/1.3 var(--f-display)}
+.news li span{display:block;font:500 .68rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin-bottom:3px}
+.score-row{display:grid;grid-template-columns:minmax(0,1fr) 52px 52px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--rule)}
+.score-row:last-child{border-bottom:0}
+.score-row .lbl b{display:block;font-weight:600;font-size:.92rem}
+.score-row .lbl span{font-size:.8rem;color:var(--ink-2)}
+.score-row .val{text-align:right;font:600 1rem var(--f-mono)}
+.score-row .val.ref{color:var(--ink-2);font-weight:400}
+.meter{grid-column:1/-1;height:6px;border-radius:3px;background:var(--well);position:relative;overflow:hidden}
+.meter span{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.meter i{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-2)}
+.score-head{display:grid;grid-template-columns:minmax(0,1fr) 52px 52px;gap:10px;font:500 .7rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.score-head span{text-align:right}
+.narr{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;max-width:80ch}
+.tablewrap{overflow-x:auto}
+table.log{border-collapse:collapse;width:100%;font-size:.86rem;min-width:720px}
+table.log th,table.log td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.log th{font:500 .7rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.tag{display:inline-block;font:600 .68rem var(--f-mono);border-radius:4px;padding:0 5px;background:var(--well)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+details summary{cursor:pointer;font-weight:600}
+footer{font-size:.8rem;color:var(--ink-2);border-top:1px solid var(--rule);margin-top:28px;padding-top:14px;display:flex;flex-direction:column;gap:8px}
+footer ol{padding-left:20px;margin:8px 0 0;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width: 860px){
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .cols3{grid-template-columns:minmax(0,1fr)}
+  .qgrid{grid-template-columns:minmax(0,1fr);grid-template-areas:"ev" "rep" "lev";grid-template-rows:auto}
+  .dgrid{grid-template-columns:minmax(0,1fr)}
+  .verdict{grid-template-columns:minmax(0,1fr)}
+  .scorebox{text-align:left}
+}
+@media (max-width: 520px){
+  body{font-size:14.5px}
+  .panel{padding:15px}
+  .steps li{min-width:0;flex:1}
+  .steps{width:100%}
+  .opts{grid-template-columns:minmax(0,1fr)}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pbar{display:none}
+  .confirm .btn{padding:12px 16px}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main id="app"></main>
+  <footer id="footer"></footer>
+</div>
+<div class="confirm" id="confirm" hidden></div>
+<script>
+"use strict";
+/* =====================================================================
+   CLAIMS OVERSIGHT SIMULATOR — single-file learning simulation
+   Tag legend for every number:  [S] sourced  [D] derived  [E] pedagogical estimate
+   Source keys (S1..S11) refer to the SOURCES table below.
+   ===================================================================== */
+
+/* ---------- 1. PARAMETERS (tunable) ---------- */
+const P = {
+  quarters: 8,                 // [E] 2 simulated years
+  members: 500000,             // [E] mid-size Medicare Advantage plan (fictional)
+  baseVolume: 200000,          // [D] 500k members x ~1.6 prior-auth requests/member/yr / 4  (S1: 49.8M determinations, ~31M MA enrollees)
+  highRiskShare: 0.35,         // [E] share of denials in post-acute, oncology, behavioral health
+  costAvoidedPerDenial: 1500,  // [E] avg medical cost not paid when a request is denied
+  appealIfWrong: 0.30,         // [E] tuned so overall appeal rate is ~10-12% (S1: 11.7%)
+  appealIfRight: 0.09,         // [E]
+  overturnIfWrong: 0.95,       // [E] anchored to S1: 81.7% of appealed MA denials overturned
+  overturnIfRight: 0.40,       // [E]
+  appealAdminCost: 400,        // [E] $ per appeal handled
+  reviewerCostQ: 30000,        // [D] S9 RN median $86,070/yr x ~1.4 loaded / 4
+  contractorCostQ: 45000,      // [E]
+  reviewerHoursQ: 420,         // [E] ~520 paid hrs/quarter x ~80% productive
+  startReviewers: 14,          // [E]
+  maxHirePerQ: 10,             // [E] clinical reviewers are slow to recruit
+  hireCost: 12000,             // [E]
+  severance: 15000,            // [E]
+  catchMax: 0.92,              // [E] best-case share of wrong denials a reviewer catches
+  catchTau: 6,                 // [E] minutes; p(catch)=catchMax*(1-exp(-min/tau)). At 1.2 s (S3) p~0
+  complacencyWeight: 0.6,      // [E] automation bias, qualitative basis S10/S11
+  falseOverturn: 0.03,         // [E] reviewers wrongly overturn correct denials
+  auditMinPerCase: 20,         // [E]
+  auditCorrectionPerCase: 0.000015, // [E] audit labels fed back into model retraining
+  baseDriftQ: 0.01,            // [E] silent model drift per quarter with no feedback
+  vendorDrift: 0.08,           // [E] error added by unvalidated vendor update
+  marginPerMemberQ: 150,       // [E] premium margin lost per departed member per quarter
+  planBase: 17.5e6,            // [E] board plan for claims-ops net result, quarter 1
+  planGrowth: 0.015,           // [E] plan rises 1.5% per quarter
+  boardSensitivity: 30,        // [E]
+  turnaroundStd: 7,            // [S] S6: 7 calendar days for standard prior-auth decisions
+  surgeFactor: 1.4,            // [E]
+  // Hidden from learners (hiding rule): removal thresholds
+  fireBoard: 15,               // [E]
+  fireRegulator: 15            // [E]
+};
+
+/* ---------- 2. LEVERS (what the player decides each quarter) ---------- */
+const LEVERS = {
+  ai: { label: "How strict should the AI be?", help: "The AI reads every pre-approval request (about 200,000 a quarter) and suggests yes or no. Each denial saves about $1,500 of medical spending.", options: {
+    conservative: { name: "Gentle", desc: "The AI only says no when the answer is very clear.", band: "Denies about 12,000 a quarter · up to ~$18M saved", denyRate: 0.06, wrongShare: 0.10 },
+    standard:     { name: "Normal", desc: "The AI company's default setting.", band: "Denies about 16,000 a quarter · up to ~$24M saved", denyRate: 0.08, wrongShare: 0.18 },
+    aggressive:   { name: "Strict", desc: "The AI also says no to borderline cases.", band: "Denies about 24,000 a quarter · up to ~$36M saved", denyRate: 0.12, wrongShare: 0.32 }
+  }},
+  // denyRate [E] anchored to S1 6.4% MA denial rate; wrongShare [E] anchored to S2 (13% of denials met coverage rules)
+  review: { label: "Which AI denials does a person check?", help: "A nurse or doctor on your team can check an AI \"no\" before the patient hears it.", options: {
+    all:      { name: "All of them", desc: "A person checks every AI denial before it goes out.", band: "Your team checks every denial (about 16,000 at Normal)" },
+    highrisk: { name: "Only serious cases", desc: "A person checks denials for serious care: nursing homes, cancer, mental health. The rest go out unchecked.", band: "Your team checks about 1 in 3 denials" },
+    none:     { name: "None", desc: "The AI decides alone. Patients can still appeal.", band: "Your team checks nothing" }
+  }},
+  target: { label: "How much time does a reviewer get per case?", help: "Each reviewer works about 420 hours a quarter. Less time per case means more cases.", options: {
+    thorough: { name: "Plenty · 15 min", desc: "Time to read the whole file.", band: "About 1,700 cases per reviewer a quarter", min: 15, compl: -0.02, morale: 2 },
+    standard: { name: "Normal · 10 min", desc: "Time to read the key parts.", band: "About 2,500 cases per reviewer a quarter", min: 10, compl: 0.02, morale: 0 },
+    lean:     { name: "Short · 5 min", desc: "Time for a quick look.", band: "About 5,000 cases per reviewer a quarter", min: 5, compl: 0.06, morale: -3 },
+    max:      { name: "Very short · 2 min", desc: "Barely time to glance.", band: "About 12,600 cases per reviewer a quarter", min: 2, compl: 0.10, morale: -7 }
+  }},
+  training: { label: "Do reviewers get training?", help: "Training costs money and uses some of your team's time.", options: {
+    none:  { name: "No training", desc: "All time goes to reviewing.", band: "$0", hoursFrac: 0, cost: 0, compl: 0, morale: 0 },
+    calib: { name: "Practice sessions", desc: "Monthly sessions where reviewers compare their decisions with experts.", band: "$150K a quarter · 5% of team time", hoursFrac: 0.05, cost: 150000, compl: -0.06, morale: 2 },
+    full:  { name: "Practice + job rotation", desc: "Practice sessions, and reviewers switch between case types to stay sharp.", band: "$400K a quarter · 12% of team time", hoursFrac: 0.12, cost: 400000, compl: -0.12, morale: 5 }
+  }},
+  audit: { label: "Spot-check final denials?", help: "A senior doctor re-checks random final decisions, about 20 minutes each, using your team's time.", options: {
+    off: { name: "No spot checks", desc: "No one double-checks.", band: "$0", rate: 0 },
+    a1:  { name: "Small · 1%", desc: "A few random denials are re-checked.", band: "About 160 cases · 53 team hours", rate: 0.01 },
+    a3:  { name: "Medium · 3%", desc: "More denials are re-checked.", band: "About 480 cases · 160 team hours", rate: 0.03 },
+    a5:  { name: "Large · 5%", desc: "Many denials are re-checked.", band: "About 800 cases · 270 team hours", rate: 0.05 }
+  }}
+};
+const LEVER_KEYS = ["ai", "review", "target", "training", "audit"];
+const EMPTY_POLICY = { ai: null, review: null, target: null, training: null, audit: null, hire: null };
+const HIRE_CHOICES = [-4, -2, 0, 2, 5, 10];   // team-size options shown each quarter
+
+/* ---------- 3. SOURCES ---------- */
+const SOURCES = [
+  ["S1", "KFF (Jan 2025). Medicare Advantage insurers made nearly 50 million prior authorization determinations in 2023. (6.4% denied; 11.7% of denials appealed; 81.7% of appeals overturned.)"],
+  ["S2", "HHS Office of Inspector General (2022). Some Medicare Advantage organization denials of prior authorization requests raise concerns about beneficiary access to medically necessary care. OEI-09-18-00260. (13% of sampled denials met Medicare coverage rules.)"],
+  ["S3", "Rucker, Armstrong & Miller, ProPublica (Mar 2023). How Cigna saves millions by having its doctors reject claims without reading them. (Reported average of 1.2 seconds per case.)"],
+  ["S4", "Estate of Gene B. Lokken et al. v. UnitedHealth Group, D. Minn. (filed Nov 2023). Allegations concerning the nH Predict algorithm. Allegations, not findings."],
+  ["S5", "U.S. Senate Permanent Subcommittee on Investigations, Majority Staff Report (Oct 2024). Refusal of Recovery: how Medicare Advantage insurers have denied patients access to post-acute care."],
+  ["S6", "CMS (2024). Interoperability and Prior Authorization Final Rule, CMS-0057-F. (72-hour expedited / 7-day standard decisions from 2026.)"],
+  ["S7", "CMS (Feb 2024). FAQs on the CY2024 Medicare Advantage final rule (CMS-4201-F): use of algorithms and AI in coverage determinations."],
+  ["S8", "California SB 1120 (2024), Physicians Make Decisions Act: AI may not be the sole basis for medical-necessity denials."],
+  ["S9", "U.S. Bureau of Labor Statistics, OEWS May 2023, Registered Nurses (29-1141): median annual wage $86,070."],
+  ["S10", "Parasuraman, R. & Manzey, D. (2010). Complacency and bias in human use of automation. Human Factors 52(3), 381-410."],
+  ["S11", "Mackworth, N. H. (1948). The breakdown of vigilance during prolonged visual search. Quarterly Journal of Experimental Psychology 1(1), 6-21."]
+];
+
+/* ---------- 4. ENGINE ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(rng){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+function newState(seed){
+  return {
+    seed, rng: mulberry32(seed), q: 1,
+    heads: P.startReviewers, morale: 70, compl: 0.2, drift: 0, vDrift: 0, E: 0.5,
+    board: 60, reg: 70, prov: 65, mem: 65, lostMembers: 0,
+    flags: {}, recurring: 0, qCost: 0, eventCost: 0, cumHighEsc: 0,
+    history: [], log: [], over: null, lawQ: null
+  };
+}
+function spend(S, amt){ S.qCost += amt; S.eventCost += amt; }
+function lastH(S){ return S.history[S.history.length-1]; }
+
+/* ---------- 5. EVENTS (path-dependent; probabilities are hidden from players) ---------- */
+const EVENTS = {
+  surge: {
+    kicker: "Busy season",
+    title: "Flu season and a big new employer",
+    text: () => "For the next two quarters you will get about 40% more requests than usual. New hires take a quarter to start.",
+    choices: [
+      { label: "Let the AI handle the extra requests alone", band: "$0 extra", desc: "Requests your team can't get to are decided by the AI, with no human check.",
+        apply: S => { S.flags.overflowUntil = S.q + 1;
+          return out("For two quarters, the extra requests are decided by the AI alone.", ["Money", "Costs stay low."], ["Patients", "More decisions go out with no human check."]); } },
+      { label: "Ask everyone to work overtime", band: S => `About ${money(S.heads * P.reviewerCostQ * 0.3)} extra pay per quarter, for 2 quarters`, desc: "Your team works about 20% more hours for two quarters.",
+        apply: S => { S.flags.overtimeUntil = S.q + 1;
+          return out("Overtime starts next week.", ["Your staff", "People are tired and unhappy about the extra hours."], ["Money", "Overtime pay is about 30% extra for two quarters."]); } },
+      { label: "Hire 6 temporary reviewers", band: "$270K per quarter (6 × $45K), for 2 quarters", desc: "They are experienced but don't know your rules yet.",
+        apply: S => { S.flags.tempUntil = S.q + 1; S.flags.tempN = 6; S.compl += 0.04;
+          return out("Six temporary reviewers start on Monday.", ["Your staff", "The team gets help, but the new people need guidance."], ["Money", "$270K per quarter for two quarters."]); } }
+    ],
+    onFire: S => { S.flags.surgeFrom = S.q; S.flags.surgeUntil = S.q + 1; }
+  },
+  vendor: {
+    kicker: "AI update",
+    title: "The AI company releases a new version",
+    text: () => "The AI company says version 3 is \"faster and more decisive.\" It goes live next week unless you say no.",
+    choices: [
+      { label: "Accept it as is", band: "$0", desc: "The AI company says they already tested it.",
+        apply: S => { S.vDrift += P.vendorDrift; S.flags.vendorChoice = "accept";
+          return out("Version 3 is live. Everything looks faster.", ["Your staff", "Some reviewers think the AI says no more often now, but no one asks them."]); } },
+      { label: "Test it next to your reviewers first", band: "$300K, plus about 8% of your team's time this quarter", desc: "For one quarter, compare version 3's decisions with your reviewers' and report problems.",
+        apply: S => { spend(S, 300000); S.flags.shadowQ = S.q; S.vDrift += 0.02; S.flags.vendorChoice = "shadow";
+          return out("Testing ($300K) showed version 3 says no to too many borderline cases. The AI company fixed most of the problems.", ["Patients", "Fewer wrong denials will get through."], ["Money", "$300K, plus about 8% of your team's time this quarter."]); } },
+      { label: "Keep the old version", band: "$250K every quarter from now on", desc: "Pay the AI company to keep supporting the old version.",
+        apply: S => { S.recurring += 250000; S.flags.vendorChoice = "decline";
+          return out("You stay on the old version.", ["Money", "$250K every quarter from now on."]); } }
+    ]
+  },
+  law: {
+    kicker: "New law",
+    title: "A person must check every AI denial",
+    text: () => "The state passed a law like California's 2024 law: a licensed doctor or nurse must personally review every request the AI wants to deny. It starts next quarter. New hires take a quarter to start.",
+    choices: [
+      { label: "Follow the law fully", band: "No direct cost, but you need enough reviewers ($30K each per quarter)", desc: "Every AI denial gets a real human review starting next quarter.",
+        apply: S => { S.lawQ = S.q + 1; S.flags.lawChoice = "comply"; S.reg += 3;
+          return out("Plan approved. Make sure you have enough reviewers.", ["Politics", "Lawmakers praise companies that comply quickly."]); } },
+      { label: "Follow it on paper only", band: "$0", desc: "One medical director signs off on AI denials in big batches.",
+        apply: S => { S.lawQ = S.q + 1; S.flags.paper = true; S.flags.lawChoice = "paper";
+          return out("Your lawyers say it is probably legal.", ["Your staff", "Your medical director is uneasy about signing hundreds of cases at once."], ["Politics", "If this becomes public, it will look bad."]); } },
+      { label: "Fight the law together with other insurers", band: "$1M in lobbying", desc: "Lobby to delay the law.",
+        apply: S => { spend(S, 1000000); S.flags.lawChoice = "contest"; const win = S.rng() < 0.5; S.lawQ = S.q + (win ? 2 : 1);
+          if (win) { S.mem -= 4; S._headline = "Insurers lobby to delay patient-protection law"; return out("The law is delayed by one quarter ($1M spent).", ["Public", "Patient groups criticize you for fighting patient protections."]); }
+          S.reg -= 5; return out("The challenge failed ($1M spent). The law starts next quarter.", ["Politics", "Lawmakers remember who fought them."]); } }
+    ]
+  },
+  media: {
+    kicker: "News",
+    title: "A reporter is writing about your denials",
+    text: S => { const h = lastH(S); return `A news outlet got your internal data. Their source says ${h.m == null ? "no person reviews AI denials at all" : "reviewers spend about " + fmtMin(h.m) + " on each case"}. The story comes out in two weeks.`; },
+    choices: [
+      { label: "Defend your company in public", band: "$200K for public relations", desc: "Say that decisions follow medical rules and anyone can appeal.",
+        apply: S => { spend(S, 200000); S.mem -= 8; S.board -= 4; S.flags.mediaHit = true; const h = lastH(S);
+          if (h.escRate > 0.12) { S.mem -= 6; S.E += 2; S._headline = "Former reviewers: 'We were told not to read the files'";
+            return out("The story runs ($200K spent on PR). Then former employees say your statement isn't true.", ["Public", "Trust in your company drops sharply. The story spreads online."], ["Patients", "Families come forward with their own stories."], ["Politics", "A state senator calls for a hearing."]); }
+          S._headline = "Insurer defends its use of AI in care decisions";
+          return out("The story runs, but your record holds up. It fades in a week.", ["Public", "Some damage to your image."]); } },
+      { label: "Hire outside experts to re-check recent denials", band: "$4M", desc: "Outside doctors review last quarter's denials, and you publish what they find.",
+        apply: S => { spend(S, 4000000); S.mem -= 3; S.reg += 8; S.prov += 5; S.E *= 0.5; S.board -= 8; S.compl = Math.max(0.05, S.compl - 0.05);
+          S._headline = "Insurer orders outside review after questions about AI denials";
+          return out("The story runs next to your announcement.", ["Patients", "Wrongly denied patients get their care approved."], ["Politics", "Regulators see that you are fixing the problem."], ["Doctors", "Doctors appreciate the honesty."], ["Money", "$4M this quarter, and the board is not happy."]); } },
+      { label: "Say nothing", band: "$0", desc: "Wait for it to pass.",
+        apply: S => { S.mem -= 12; S.prov -= 5; S.E += 1; S.board -= 6; S.flags.mediaHit = true; S._headline = "Insurer silent as patients describe AI denials";
+          return out("The story says, \"The company declined to comment.\"", ["Public", "People assume the worst."], ["Doctors", "Doctor groups share the story widely."], ["Politics", "Silence makes regulators more curious."]); } }
+    ]
+  },
+  regulator: {
+    kicker: "Government",
+    title: "State inspectors are checking your denials",
+    text: () => "State insurance inspectors will pull a sample of your recent denials and check whether they followed the rules.",
+    choices: [
+      { label: "Cooperate fully and share everything", band: "Fine depends on what they find (up to about $12M)", desc: "Include your own quality checks.",
+        apply: S => regulatorOutcome(S, "open") },
+      { label: "Share only what the law requires", band: "Fine depends on what they find (up to about $12M)", desc: "Keep your options open.",
+        apply: S => regulatorOutcome(S, "minimal") }
+    ]
+  },
+  classAction: {
+    kicker: "Lawsuit",
+    title: "Families sue over AI denials",
+    text: () => "Families of patients are suing as a group. They say your AI wrongly refused nursing-home care and other serious care. Similar lawsuits were filed against large insurers in 2023.",
+    choices: [
+      { label: "Fight in court", band: "$3M in legal fees. If you lose, about $25M more.", desc: "Your lawyers think you can win.",
+        apply: S => { spend(S, 3000000); const h = lastH(S); const win = S.rng() < clamp(1 - h.escRate * 5, 0.1, 0.85);
+          if (win) { S.board += 4; S._headline = "Court dismisses families' lawsuit against insurer";
+            return out("The court threw out the case. You still paid $3M in legal fees.", ["Public", "Many people still believe the families."]); }
+          spend(S, 25000000); S.mem -= 10; S.board -= 15; S.reg -= 10; S._headline = "Jury sides with families in AI denial lawsuit";
+          return out("You lost. Damages come to about $25M, on top of $3M in legal fees.", ["Money", "A $28M hit this quarter."], ["Public", "The verdict makes national news."], ["Politics", "Lawmakers use the case to push for new AI rules."]); } },
+      { label: "Settle and accept an outside monitor", band: "$12M settlement", desc: "Pay the families, and a person must check every AI denial for the rest of the game.",
+        apply: S => { spend(S, 12000000); S.flags.forceAll = true; S.reg += 5; S.mem += 3; S.board -= 8; S._headline = "Insurer settles AI denial lawsuit, accepts monitor";
+          return out("Settled for $12M. An outside monitor starts next quarter.", ["Patients", "Families receive compensation."], ["Politics", "Regulators see you taking responsibility."], ["Money", "$12M paid this quarter."]); } }
+    ]
+  },
+  provider: {
+    kicker: "Doctors & hospitals",
+    title: "A big hospital system may leave your network",
+    text: () => "A hospital system that cares for about 8% of your members says your denials are hurting their patients and their finances.",
+    choices: [
+      { label: "Let their trusted doctors skip pre-approval", band: "About 8% fewer requests to check, so lower savings", desc: "Doctors with a strong record don't have to ask first.",
+        apply: S => { S.flags.gold = true; S.prov += 15;
+          return out("They stay.", ["Doctors", "Doctors see this as a sign of respect."], ["Money", "You save less because fewer requests get checked."]); } },
+      { label: "Refuse to change", band: "$0, or lose about 10,000 members (about $1.5M a quarter)", desc: "Your rules are your rules.",
+        apply: S => { if (S.rng() < 0.5) { S.mem -= 12; S.lostMembers += P.members * 0.02; S.prov -= 10; S.board -= 5; S._headline = "Major hospital system drops insurer over denials";
+            return out("They left your network. About 10,000 members (2%) left with their doctors.", ["Patients", "Many patients had to find new doctors."], ["Public", "Local news covers the split."], ["Money", "About $1.5M less income every quarter from now on."]); }
+          S.prov -= 3; return out("They backed down this time.", ["Doctors", "Doctors are still unhappy."]); } },
+      { label: "Open a phone line where doctors can talk to your reviewers", band: "$0, but about 8% of your team's time", desc: "Doctors can discuss any denial with your clinical team.",
+        apply: S => { S.flags.p2p = true; S.prov += 10; S.mem += 3;
+          return out("The doctor phone line is open.", ["Doctors", "Doctors feel heard."], ["Patients", "Some wrong decisions get fixed faster."], ["Your staff", "Reviewers spend part of their time on calls."]); } }
+    ]
+  },
+  burnout: {
+    kicker: "Your staff",
+    title: "Experienced reviewers are quitting",
+    text: () => "Two senior reviewers quit this week. The rest of the team signed a letter about the workload and time pressure.",
+    choices: [
+      { label: "Pay bonuses to keep people", band: "$600K, one time", desc: "Show people they are valued.",
+        apply: S => { spend(S, 600000); S.morale += 12;
+          return out("Bonuses paid: $600K.", ["Your staff", "People feel valued, at least for now."], ["Money", "$600K, one time."]); } },
+      { label: "Replace them with 3 permanent contractors", band: "$135K every quarter (3 × $45K)", desc: "Fast, but they don't know your rules.",
+        apply: S => { S.flags.contractors = (S.flags.contractors || 0) + 3; S.compl += 0.08; S.morale -= 4;
+          return out("The contractors start right away.", ["Your staff", "The team feels replaceable."], ["Patients", "The new people miss more mistakes at first."]); } },
+      { label: "Remove time pressure for one quarter", band: "$0, but fewer cases reviewed this quarter", desc: "Reviewers can take the time they need this quarter, whatever you choose below.",
+        apply: S => { S.flags.quotaPauseQ = S.q; S.morale += 8; S.board -= 5;
+          return out("Time targets are paused for this quarter.", ["Your staff", "The team feels heard."], ["Money", "The board worries about speed."]); } }
+    ],
+    onFire: S => { S.heads = Math.max(1, S.heads - 2); }
+  },
+  boardPush: {
+    kicker: "Board",
+    title: "The board wants you to cut costs by 15%",
+    text: () => "The finance chief wants a plan before the next board meeting.",
+    choices: [
+      { label: "Lay off 20% of your reviewers now", band: S => { const n = Math.floor(S.heads * 0.2); return `Saves about ${money(n * P.reviewerCostQ)} a quarter; ${money(n * P.severance)} severance now`; }, desc: "Severance now, savings later.",
+        apply: S => { const n = Math.floor(S.heads * 0.2); S.heads -= n; spend(S, n * P.severance); S.board += 12; S.morale -= 10;
+          return out(`${n} reviewers were laid off (${money(n * P.severance)} severance).`, ["Your staff", "The people who stay are scared and stretched."], ["Money", "The board is pleased."]); } },
+      { label: "Defend your budget with evidence", band: "$0", desc: "Show the board what your reviewers prevent.",
+        apply: S => { const had = S.history.slice(-2).some(h => h.audit);
+          if (had) { S.board += 6; return out("Your spot-check data shows the mistakes your team catches. The board agrees.", ["Money", "The board now sees review as protection, not waste."]); }
+          S.board -= 10; return out("You have no hard data, so it sounds like an excuse. The board is not convinced.", ["Money", "The board trusts you less."]); } }
+    ]
+  }
+};
+
+function regulatorOutcome(S, mode){
+  const h = lastH(S); const s = h.escRate;
+  const auditDoc = S.history.slice(-2).some(x => x.audit);
+  let fine = clamp((s - 0.04) * 60, 0, 12) * 1e6, hit = Math.max(0, (s - 0.04) * 200);
+  if (mode === "open") {
+    const k = auditDoc ? 0.5 : 1; fine *= k; hit *= k;
+    spend(S, fine); S.reg += 5 - hit;
+    if (s < 0.05) { S.reg += 8; S._headline = "State inspection finds insurer's AI checks working";
+      return out("A clean result. The state praises your quality checks.", ["Politics", "Officials hold you up as a good example."]); }
+    S._headline = "State fines insurer over wrongful denials";
+    return out(`The inspectors found problems and gave you a ${fineWord(fine)} of ${money(fine)}.`,
+      auditDoc ? ["Politics", "Your spot checks showed good faith, so the penalty was cut in half."] : ["Politics", "The findings are now public record."],
+      ["Patients", "The state orders you to re-check some denied cases."]);
+  }
+  if (s > 0.08) { fine *= 1.6; spend(S, fine); S.reg -= hit * 1.3 + 10; S.board -= 5; S._headline = "State hits uncooperative insurer with penalty";
+    return out(`The inspectors got suspicious and dug deeper. You got a ${fineWord(fine)} of ${money(fine)} and must follow a correction plan.`, ["Politics", "Officials now see you as uncooperative."], ["Public", "The news reports on the penalty."]); }
+  S.reg -= 2; S.board += 2;
+  return out("The inspection closed with minor issues.", ["Politics", "Officials noticed that you shared only the bare minimum."]);
+}
+
+function drawEvent(S){
+  if (S.q === 3) return { id: "surge", why: "Planned: flu season and a new employer." };
+  if (S.q === 4) return { id: "vendor", why: "Planned: the AI company's release schedule." };
+  if (S.q === 6) return { id: "law", why: "Planned: based on real 2024 laws (S8)." };
+  if (S.q < 2) return null;
+  const h = lastH(S), f = S.flags, c = [];
+  const mDrivers = [];
+  if (S.E > 4) mDrivers.push("many wrongly denied patients were telling their stories");
+  if (h.m != null && h.m < 3) mDrivers.push(`reviewers had only ${fmtMin(h.m)} per case`);
+  if (h.m == null) mDrivers.push("no person was checking AI denials");
+  if (f.paper && S.lawQ && S.q >= S.lawQ) mDrivers.push("batch sign-offs had become routine");
+  if (!f.classDone && S.cumHighEsc > 4000)
+    c.push(["classAction", 0.3 + (f.mediaHit ? 0.2 : 0), `Thousands of patients had been wrongly refused serious care.`]);
+  c.push(["regulator", Math.min(0.6, 0.03 + 0.025 * S.E + (h.overturnRate > 0.7 ? 0.08 : 0) + (f.mediaHit ? 0.2 : 0)),
+    `Inspections get more likely when many appeals are won by patients${f.mediaHit ? " and after news stories" : ""}.`]);
+  if ((f.mediaN || 0) < 2)
+    c.push(["media", Math.min(0.7, 0.02 + 0.03 * S.E + ((h.m != null && h.m < 3) || h.m == null ? 0.25 : 0) + (f.paper && S.lawQ && S.q >= S.lawQ ? 0.25 : 0)),
+      mDrivers.length ? "It became more likely because " + mDrivers.join(" and ") + "." : "Insurers' denials draw news attention from time to time."]);
+  if (!f.providerDone && S.prov < 45) c.push(["provider", 0.45, "Doctors and hospitals had lost trust in your decisions."]);
+  if (S.morale < 45 && (f.burnoutQ || -9) < S.q - 2) c.push(["burnout", 0.45, "Your team was overworked and under time pressure."]);
+  if (!f.boardDone && S.board < 45) c.push(["boardPush", 0.5, "Your results had come in below the board's plan."]);
+  for (const [id, p, why] of c) if (S.rng() < p) return { id, why };
+  return null;
+}
+
+function fireEvent(S, ev){
+  const E = EVENTS[ev.id];
+  if (E.onFire) E.onFire(S);
+  const f = S.flags;
+  if (ev.id === "media") f.mediaN = (f.mediaN || 0) + 1;
+  if (ev.id === "classAction") f.classDone = true;
+  if (ev.id === "provider") f.providerDone = true;
+  if (ev.id === "burnout") f.burnoutQ = S.q;
+  if (ev.id === "boardPush") f.boardDone = true;
+}
+function resolveEvent(S, ev, idx){
+  const before = S.eventCost;
+  S._headline = null;
+  const msg = EVENTS[ev.id].choices[idx].apply(S);
+  S.log.push({ q: S.q, id: ev.id, why: ev.why, choice: idx, label: EVENTS[ev.id].choices[idx].label, outcome: msg, headline: S._headline, cost: S.eventCost - before });
+  clampStake(S);
+  return msg;
+}
+function clampStake(S){ for (const k of ["board","reg","prov","mem","morale"]) S[k] = clamp(S[k], 0, 100); S.compl = clamp(S.compl, 0.05, 0.9); }
+
+function simulateQuarter(S, pol){
+  const q = S.q, f = S.flags, L = LEVERS;
+  const ai = L.ai.options[pol.ai];
+  const tg = L.target.options[f.quotaPauseQ === q ? "thorough" : pol.target];
+  const tr = L.training.options[pol.training];
+  const br = { events: S.qCost, staffChange: 0, fines: 0 }; S.qCost = 0;
+  // staffing
+  let laid = 0;
+  if (pol.hire < 0) { laid = Math.min(-pol.hire, Math.max(0, Math.floor(S.heads) - 1)); S.heads -= laid; br.staffChange += laid * P.severance; }
+  const hires = pol.hire > 0 ? Math.min(pol.hire, P.maxHirePerQ) : 0; br.staffChange += hires * P.hireCost;
+  // volume and AI
+  const surge = f.surgeFrom && q >= f.surgeFrom && q <= f.surgeUntil;
+  const vol = P.baseVolume * (surge ? P.surgeFactor : 1) * (f.gold ? 0.92 : 1) * (1 - S.lostMembers / P.members);
+  const aiDen = vol * ai.denyRate;
+  const wrongShare = clamp(ai.wrongShare + S.drift + S.vDrift, 0, 0.8);
+  const wrong = aiDen * wrongShare, right = aiDen - wrong;
+  // coverage
+  const lawOn = S.lawQ && q >= S.lawQ, paper = lawOn && f.paper;
+  let review = pol.review; if (f.forceAll || paper) review = "all";
+  const revHigh = review !== "none", revLow = review === "all";
+  const reviewCases = aiDen * ((revHigh ? P.highRiskShare : 0) + (revLow ? 1 - P.highRiskShare : 0));
+  // capacity
+  const temp = (f.tempUntil && q <= f.tempUntil) ? f.tempN : 0;
+  const contractors = f.contractors || 0;
+  const overtime = f.overtimeUntil && q <= f.overtimeUntil;
+  const capMin = (S.heads + temp + contractors) * P.reviewerHoursQ * 60 * (1 - tr.hoursFrac) * (overtime ? 1.2 : 1) * (f.p2p ? 0.92 : 1) * (f.shadowQ === q ? 0.92 : 1);
+  let auditN = aiDen * L.audit.options[pol.audit].rate, auditMin = auditN * P.auditMinPerCase;
+  if (auditMin > capMin * 0.5) { auditMin = capMin * 0.5; auditN = auditMin / P.auditMinPerCase; }
+  const avail = capMin - auditMin;
+  let fRev = 1, m = null, rho;
+  if (reviewCases > 0) {
+    const demand = reviewCases * tg.min;
+    rho = (demand + auditMin) / capMin;
+    if (demand <= avail) m = tg.min;
+    else if (f.overflowUntil && q <= f.overflowUntil) { fRev = avail / demand; m = tg.min; rho = 1; }
+    else m = Math.max(0.2, avail / reviewCases);
+    if (paper) m = Math.min(m, 0.5);
+  } else rho = auditMin / capMin;
+  const pCatch = m ? P.catchMax * (1 - Math.exp(-m / P.catchTau)) * (1 - P.complacencyWeight * S.compl) : 0;
+  const wH = wrong * P.highRiskShare, wL = wrong - wH;
+  const caughtH = revHigh ? wH * fRev * pCatch : 0, caughtL = revLow ? wL * fRev * pCatch : 0;
+  const caught = caughtH + caughtL;
+  const reviewed = reviewCases * fRev;
+  const falseOv = right * (reviewed / aiDen) * P.falseOverturn;
+  const escH = wH - caughtH, escWrong = wrong - caught, escRight = right - falseOv;
+  const finalDen = escWrong + escRight;
+  const appW = escWrong * P.appealIfWrong, appR = escRight * P.appealIfRight;
+  const appeals = appW + appR, overturned = appW * P.overturnIfWrong + appR * P.overturnIfRight;
+  const overturnRate = appeals ? overturned / appeals : 0;
+  const reportedErr = (caught + appW * P.overturnIfWrong) / aiDen;
+  const escRate = escWrong / finalDen;
+  let audit = null;
+  if (auditN >= 20) { const n = Math.round(auditN); const se = Math.sqrt(escRate * (1 - escRate) / n);
+    const est = clamp(escRate + gauss(S.rng) * se, 0, 1); audit = { n, est, ci: 1.96 * Math.sqrt(Math.max(est * (1 - est), 0.0004) / n) }; }
+  const r = Math.min(rho, 0.95);
+  const td = reviewCases > 0 ? 1.5 + r / (1 - r) + Math.max(0, rho - 1) * 15 : 1;
+  // law compliance
+  let nonCompliant = false;
+  if (lawOn && !paper && review !== "all") { nonCompliant = true; br.fines = 3e6; S.reg -= 20; }
+  // money
+  br.reviewers = S.heads * P.reviewerCostQ;
+  br.extra = (temp + contractors) * P.contractorCostQ + (overtime ? S.heads * P.reviewerCostQ * 0.3 : 0);
+  br.training = tr.cost; br.appeals = appeals * P.appealAdminCost; br.vendor = S.recurring; br.lostMembers = S.lostMembers * P.marginPerMemberQ;
+  const cost = Object.values(br).reduce((a, b) => a + b, 0);
+  const avoided = (finalDen - overturned) * P.costAvoidedPerDenial;
+  const profit = avoided - cost;
+  const plan = P.planBase * Math.pow(1 + P.planGrowth, q - 1);
+  // stakeholders
+  S.board += clamp((profit - plan) / plan * P.boardSensitivity, -10, 10);
+  if (td > P.turnaroundStd) { S.reg -= 4; S.prov -= 3; }
+  if (audit && L.audit.options[pol.audit].rate >= 0.03) S.reg += 2;
+  S.reg += (70 - S.reg) * 0.05;
+  S.prov += 1 - escH / 400 - escWrong / 1500;
+  S.mem += 1.5 - escWrong / 1200 - escH / 600;
+  S.morale += -Math.max(0, rho - 0.85) * 80 + tg.morale + tr.morale - laid * 2 + (65 - S.morale) * 0.1 + (overtime ? -6 : 0);
+  clampStake(S);
+  const turnover = 0.03 + Math.max(0, 55 - S.morale) * 0.006;
+  const quit = S.heads * turnover; S.heads -= quit;
+  S.compl = clamp(S.compl + 0.02 + tg.compl + tr.compl + (m != null && m < tg.min ? 0.04 : 0) + (contractors ? 0.02 : 0), 0.05, 0.9);
+  S.drift += P.baseDriftQ;
+  const corr = auditN * P.auditCorrectionPerCase, fromV = Math.min(S.vDrift, corr);
+  S.vDrift -= fromV; S.drift = Math.max(0, S.drift - (corr - fromV));
+  S.E = 0.75 * S.E + escWrong / 4000 + escH / 2000 + (paper ? 1 : 0);
+  S.cumHighEsc += escH;
+  if (q === 4) S.lostMembers += P.members * Math.max(0, 60 - S.mem) * 0.001;   // annual enrollment
+  const h = { q, vol, aiDen, wrongShare, reviewCases, reviewed, m, rho, pCatch, caught, escWrong, escH, finalDen, appeals, overturnRate,
+    reportedErr, escRate, audit, td, profit, plan, cost, avoided, br, heads: S.heads + hires, hires, laid, quit, temp, morale: S.morale, compl: S.compl,
+    board: S.board, reg: S.reg, prov: S.prov, mem: S.mem, nonCompliant, paper, policy: { ...pol }, effReview: review };
+  S.heads += hires;
+  S.history.push(h);
+  if (S.reg < P.fireRegulator) S.over = { type: "regulator", q };
+  else if (S.board < P.fireBoard) S.over = { type: "board", q };
+  S.q++;
+  return h;
+}
+
+function computeScores(S){
+  const H = S.history, n = H.length || 1, sum = f => H.reduce((a, h) => a + f(h), 0);
+  const ratio = sum(h => h.profit) / sum(h => h.plan);
+  const escRate = sum(h => h.escWrong) / sum(h => h.finalDen);
+  const harm = sum(h => h.escWrong + 2 * h.escH) / n;
+  const avgMorale = sum(h => h.morale) / n;
+  const d = {
+    fin:  clamp((ratio - 0.6) / 0.6 * 100, 0, 100),
+    acc:  clamp(100 - escRate * 400, 0, 100),
+    harm: (clamp(100 - harm / 80, 0, 100) + S.mem) / 2,   // patient harm + public trust
+    reg:  S.reg, prov: S.prov,
+    work: clamp((avgMorale + S.morale) / 2, 0, 100)
+  };
+  const raw = (d.fin + d.acc + d.harm + d.reg + d.prov + d.work) / 6;
+  // Removal penalty [E]: score scaled by share of the run completed (25% floor)
+  const done = S.over ? S.history.length / P.quarters : 1;
+  d.overall = raw * (0.25 + 0.75 * done);
+  return { d, ratio, escRate, harm, raw, done };
+}
+const DIMS = [["fin","Money","Results vs. the board's plan"],["acc","Fair decisions","How often a final denial was wrong"],
+  ["harm","Patients & public","Harm to patients and public trust"],["reg","Government & politics","Inspections, laws and political pressure"],
+  ["prov","Doctors & hospitals","Trust from the medical community"],["work","Your staff","Reviewer wellbeing and retention"]];
+
+/* Reference path: a steady, durable-fix strategy from the same seed */
+const REF_CHOICE = { surge: 2, vendor: 1, law: 0, media: 1, regulator: 0, classAction: 1, provider: 2, burnout: 0, boardPush: 1 };
+function refPolicy(S){
+  const pol = { ai: "standard", review: "all", target: "thorough", training: "full", audit: "a5", hire: 0 };
+  const nextQ = S.q + 1, f = S.flags;
+  const surgeNext = (f.surgeFrom && nextQ <= f.surgeUntil) || nextQ === 3;
+  const aiDen = P.baseVolume * (surgeNext ? P.surgeFactor : 1) * (f.gold ? 0.92 : 1) * LEVERS.ai.options.standard.denyRate;
+  const tmin = LEVERS.target.options.thorough.min, tr = LEVERS.training.options.full;
+  const need = (aiDen * tmin + aiDen * LEVERS.audit.options.a5.rate * P.auditMinPerCase) / (0.75 * P.reviewerHoursQ * 60 * (1 - tr.hoursFrac) * (f.p2p ? 0.92 : 1));
+  pol.hire = clamp(Math.ceil(need - S.heads * 0.95 - (f.contractors || 0)), 0, P.maxHirePerQ);   // hire ahead of demand, target ~75% utilization
+  return pol;
+}
+function runPlaythrough(seed, policyFn, choiceFn){
+  const S = newState(seed);
+  while (S.q <= P.quarters && !S.over) {
+    const ev = drawEvent(S);
+    if (ev) { fireEvent(S, ev); resolveEvent(S, ev, choiceFn(ev.id, S)); }
+    simulateQuarter(S, policyFn(S));
+  }
+  return S;
+}
+const runReference = seed => runPlaythrough(seed, refPolicy, id => REF_CHOICE[id]);
+
+/* ---------- 6. FORMATTING ---------- */
+function pct(x){ return (x * 100).toFixed(1) + "%"; }
+function money(x){ const a = Math.abs(x), sg = x < 0 ? "−$" : "$"; return a >= 1e6 ? sg + (a / 1e6).toFixed(1) + "M" : sg + Math.round(a / 1000) + "K"; }
+function fmtInt(x){ return Math.round(x).toLocaleString("en-US"); }
+function fmtMin(m){ return m >= 1 ? m.toFixed(1) + " min" : Math.round(m * 60) + " sec"; }
+function out(main, ...imp){ return `<p style="margin:.4em 0">${main}</p>` + (imp.length ? `<ul class="impacts mini">${imp.map(([a, t]) => `<li><b>${a}</b><span>${t}</span></li>`).join("")}</ul>` : ""); }
+function fineWord(x){ return x < 2e6 ? "small fine" : x < 6e6 ? "large fine" : "very large fine"; }
+function band(v){ return v >= 70 ? "Happy" : v >= 50 ? "OK" : v >= 30 ? "Worried" : "Angry"; }
+function bandCls(v){ return v >= 50 ? "" : v >= 30 ? "warn" : "bad"; }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+if (typeof module !== "undefined") module.exports = { P, LEVERS, LEVER_KEYS, EVENTS, newState, drawEvent, fireEvent, resolveEvent, simulateQuarter, computeScores, runPlaythrough, runReference, refPolicy, REF_CHOICE };
+
+/* ---------- 7. UI ---------- */
+if (typeof document !== "undefined") (function(){
+const app = document.getElementById("app");
+const bar = document.getElementById("confirm");
+let S = null, curEvent = null, eventDone = false, eventMsg = "", pol = { ...EMPTY_POLICY }, prevPol = null, lastNotes = "";
+const CO = "Mesa Verde Health";
+const TONE = { good: "Good", warn: "Watch", bad: "Trouble" };
+const tone = v => v >= 60 ? "good" : v >= 40 ? "warn" : "bad";
+const bandOf = (b, S) => typeof b === "function" ? b(S) : b;
+const newSeed = () => Math.floor(Math.random() * 1e9) + 1;
+
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+function drawChart(canvas, series, opt = {}){
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const g = canvas.getContext("2d"); g.scale(dpr, dpr);
+  const pad = { l: 40, r: 12, t: 10, b: 22 }, n = P.quarters;
+  let ymax = 0;
+  series.forEach(s => s.data.forEach((v, i) => { if (v != null) ymax = Math.max(ymax, v + (s.err ? s.err[i] || 0 : 0)); }));
+  const step = niceStep(ymax / 4 || 1); ymax = Math.max(step * 4, Math.ceil(ymax / step) * step);
+  const X = i => pad.l + (W - pad.l - pad.r) * i / (n - 1);
+  const Y = v => pad.t + (H - pad.t - pad.b) * (1 - v / ymax);
+  const mono = cssVar("--f-mono") || "monospace";
+  g.font = `11px ${mono}`; g.fillStyle = cssVar("--ink-2"); g.strokeStyle = cssVar("--rule"); g.lineWidth = 1;
+  for (let v = 0; v <= ymax + 1e-9; v += step) { const y = Math.round(Y(v)) + .5;
+    g.beginPath(); g.moveTo(pad.l, y); g.lineTo(W - pad.r, y); g.stroke();
+    g.textAlign = "right"; g.fillText(opt.fmt ? opt.fmt(v) : String(v), pad.l - 7, y + 4); }
+  g.textAlign = "center"; for (let i = 0; i < n; i++) g.fillText("Q" + (i + 1), X(i), H - 5);
+  series.forEach((s, si) => {
+    const col = cssVar(s.color), pts = s.data.map((v, i) => v == null ? null : [X(i), Y(v)]);
+    if (s.fill) { const seg = pts.filter(Boolean); if (seg.length > 1) { g.beginPath(); g.moveTo(seg[0][0], Y(0)); seg.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(seg[seg.length - 1][0], Y(0)); g.closePath(); g.globalAlpha = .12; g.fillStyle = col; g.fill(); g.globalAlpha = 1; } }
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = 2.2; g.lineJoin = "round"; g.setLineDash(s.dash ? [5, 4] : []);
+    g.beginPath(); let started = false;
+    pts.forEach(p => { if (!p) { started = false; return; } if (!started) { g.moveTo(p[0], p[1]); started = true; } else g.lineTo(p[0], p[1]); });
+    g.stroke(); g.setLineDash([]);
+    const last = pts.reduce((a, p, i) => p ? i : a, -1);
+    pts.forEach((p, i) => { if (!p) return;
+      if (s.err && s.err[i]) { g.lineWidth = 1.2; g.beginPath(); g.moveTo(p[0], Y(Math.max(0, s.data[i] - s.err[i]))); g.lineTo(p[0], Y(s.data[i] + s.err[i])); g.stroke(); g.lineWidth = 2.2; }
+      g.beginPath(); g.arc(p[0], p[1], i === last && !s.dash ? 4.2 : 2.4, 0, 7); g.fill();
+      if (i === last && !s.dash) { g.fillStyle = cssVar("--sheet"); g.beginPath(); g.arc(p[0], p[1], 1.8, 0, 7); g.fill(); g.fillStyle = col; } });
+  });
+}
+function niceStep(x){ const p = Math.pow(10, Math.floor(Math.log10(x))), f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+function chartBlock(id, title, legend, note){
+  return `<div class="panel chart"><h3>${title}</h3>${note ? `<p class="small muted">${note}</p>` : ""}<div class="legend">${legend.map(([c, l, d]) => `<span><i style="background:var(${c});${d ? "opacity:.55" : ""}"></i>${l}</span>`).join("")}</div><canvas id="${id}"></canvas></div>`;
+}
+
+/* ---- Impact of a quarter on each part of society ---- */
+function impacts(S, h){
+  const L = [];
+  if (h.escWrong > 4000) L.push(["Patients & families", "bad", `About ${fmtRound(h.escWrong)} people were told no to care they really needed. Some went without treatment. Others paid out of pocket or went into debt.`]);
+  else if (h.escWrong > 1500) L.push(["Patients & families", "warn", `About ${fmtRound(h.escWrong)} patients were refused care they needed. Families are frustrated by the long appeals process.`]);
+  else L.push(["Patients & families", "good", `Most patients got fair answers. About ${fmtRound(h.escWrong)} were wrongly refused care.`]);
+  if (h.escH > 1200) L.push(["Community", "bad", "Nursing homes and cancer clinics say patients are being sent home too early. Local charities report more people asking for help."]);
+  else if (S.mem < 45) L.push(["Community", "warn", "Trust in your company is falling. People are sharing stories online about being denied care."]);
+  else L.push(["Community", "good", "There is no big public concern. Community groups see you as a fair insurer."]);
+  if (h.nonCompliant) L.push(["Government & politics", "bad", "You are breaking the new state law and were fined $3M. Lawmakers are calling you out by name."]);
+  else if (S.reg < 40) L.push(["Government & politics", "bad", "State officials are watching you closely. A lawmaker is pushing for stricter AI rules and using your company as the example."]);
+  else if (S.reg < 60) L.push(["Government & politics", "warn", "Regulators have questions about how you use AI."]);
+  else L.push(["Government & politics", "good", "Regulators see you as a responsible company."]);
+  if (S.prov < 40) L.push(["Doctors & hospitals", "bad", "Doctors are angry. They spend hours fighting your denials, and some tell patients to switch insurers."]);
+  else if (S.prov < 60) L.push(["Doctors & hospitals", "warn", `Doctors complain about paperwork and waits of about ${Math.round(h.td)} days for answers.`]);
+  else L.push(["Doctors & hospitals", "good", "Doctors say your decisions are mostly fair and quick."]);
+  if (S.morale < 45 || h.rho > 0.95) L.push(["Your staff", "bad", "Reviewers are exhausted and some are quitting. They say they have no time to actually read the files."]);
+  else if (S.morale < 60 || h.rho > 0.85) L.push(["Your staff", "warn", "Reviewers are busy and stressed."]);
+  else L.push(["Your staff", "good", "Your team feels respected and has time to do the job well."]);
+  if (h.profit >= h.plan) L.push(["Money & board", "good", `You made ${money(h.profit)} against a plan of ${money(h.plan)}. The board is pleased.`]);
+  else if (h.profit >= h.plan * 0.9) L.push(["Money & board", "warn", `You made ${money(h.profit)}, a little below the ${money(h.plan)} plan.`]);
+  else L.push(["Money & board", "bad", `You made ${money(h.profit)}, well below the ${money(h.plan)} plan. The board is asking questions.`]);
+  if (S.E > 5) L.push(["News & reputation", "bad", "Reporters are contacting former employees and patients about how you use AI."]);
+  return L.map(([a, t, x]) => `<li><span class="area">${a}</span><span class="pill t-${t}">${TONE[t]}</span><span class="txt">${x}</span></li>`).join("");
+}
+function ledger(h){
+  const b = h.br, rows = [["Savings from denials (after appeals)", h.avoided, true], ["Reviewer pay", -b.reviewers], ["Temporary staff & overtime", -b.extra],
+    ["Training", -b.training], ["Handling appeals", -b.appeals], ["Hiring & layoffs", -b.staffChange], ["AI vendor support fee", -b.vendor],
+    ["Income lost from members who left", -b.lostMembers], ["Fines, legal & one-time costs", -(b.events + b.fines)]];
+  const ok = h.profit >= h.plan;
+  return `<table class="ledger">${rows.filter(r => r[2] || Math.abs(r[1]) >= 1000).map(([l, v]) => `<tr><td>${l}</td><td class="${v > 0 ? "pos" : "neg"}">${v > 0 ? "+" : ""}${money(v)}</td></tr>`).join("")}
+    <tr class="total"><td>Net result <span class="badge t-${ok ? "good" : "bad"}">${ok ? "Above plan" : "Below plan"}</span></td><td>${money(h.profit)}</td></tr>
+    <tr class="plan"><td>Board's plan</td><td>${money(h.plan)}</td></tr></table>`;
+}
+
+/* ---- Intro ---- */
+function renderIntro(){
+  bar.hidden = true;
+  app.innerHTML = `
+  <section class="hero">
+    <div>
+      <p class="eyebrow">A decision simulation · 8 quarters · about 20 minutes</p>
+      <h1 style="margin-top:10px">Claims Oversight Simulator</h1>
+      <p class="lead">An AI now reads every pre-approval request at ${CO} and suggests which ones to deny. You decide how much people should check it, and you live with what happens.</p>
+      <button class="btn primary lg" id="start">Start Q1</button>
+    </div>
+    <div class="factsheet">
+      <div class="fs-head"><span>Your file</span><span>Q1 · Year 1</span></div>
+      <dl>
+        <div><dt>Your role</dt><dd>Head of Claims Operations</dd></div>
+        <div><dt>Company</dt><dd>${CO} (fictional)</dd></div>
+        <div><dt>Members</dt><dd>500,000</dd></div>
+        <div><dt>Requests per quarter</dt><dd>200,000</dd></div>
+        <div><dt>Clinical reviewers</dt><dd>${P.startReviewers} · $30K each per quarter</dd></div>
+        <div><dt>Board's savings plan</dt><dd>${money(P.planBase)} per quarter, rising</dd></div>
+      </dl>
+    </div>
+  </section>
+  <section class="cols3">
+    <div class="panel"><h3>What is pre-approval?</h3><p class="small" style="margin-top:8px">Before some treatments, a doctor must ask the insurer for permission. If the insurer says no, the patient may go without care, pay out of pocket, or file an appeal. Some AI denials are wrong: the patient really needed the care.</p></div>
+    <div class="panel"><h3>Who you answer to</h3><ul class="small">
+      <li><b>The board</b> wants savings that beat its plan.</li>
+      <li><b>The state government</b> enforces the rules and can remove you.</li>
+      <li><b>Patients and the public</b> need fair, timely care.</li>
+      <li><b>Doctors and hospitals</b> want quick, sensible decisions.</li>
+      <li><b>Your staff</b> are the nurses and doctors who check the AI.</li></ul></div>
+    <div class="panel"><h3>How it works</h3><ul class="small">
+      <li>Each quarter, answer 6 questions.</li>
+      <li>Most quarters bring a surprise you must respond to.</li>
+      <li>You see results only after you confirm.</li>
+      <li>You can be removed before the 2 years are up.</li>
+      <li>No option is marked as correct. Read and decide.</li></ul></div>
+  </section>`;
+  document.getElementById("start").onclick = () => startGame(newSeed());
+}
+
+function startGame(seed){ S = newState(seed); prevPol = null; lastNotes = ""; window.scrollTo(0, 0); beginQuarter(); }
+function beginQuarter(){
+  curEvent = drawEvent(S); eventDone = !curEvent; eventMsg = "";
+  if (curEvent) fireEvent(S, curEvent);
+  pol = { ...EMPTY_POLICY };
+  if (S.flags.forceAll) pol.review = "all";
+  renderQuarter();
+}
+const ready = () => eventDone && LEVER_KEYS.every(k => pol[k]) && pol.hire !== null;
+const nChosen = () => LEVER_KEYS.filter(k => pol[k]).length + (pol.hire !== null ? 1 : 0);
+
+/* ---- Quarter ---- */
+function renderQuarter(){
+  const h = lastH(S), lawOn = S.lawQ && S.q >= S.lawQ;
+  const moods = [["Board", S.board], ["State government", S.reg], ["Public", S.mem], ["Doctors", S.prov], ["Your staff", S.morale]];
+  let html = `<header class="topbar"><div class="brand"><span class="mark">MV</span><div><b>${CO}</b><span>Claims Operations · Year ${Math.ceil(S.q / 4)}</span></div></div>
+    <ol class="steps">${Array.from({ length: P.quarters }, (_, i) => `<li class="${i + 1 < S.q ? "done" : i + 1 === S.q ? "now" : ""}">Q${i + 1}</li>`).join("")}</ol></header>
+    <div class="chips">${moods.map(([k, v]) => `<span class="chip"><i class="dot t-${tone(v)}"></i>${k} <b>${band(v)}</b></span>`).join("")}</div>
+    <div class="qgrid">`;
+  if (curEvent) {
+    const E = EVENTS[curEvent.id];
+    html += `<section class="ev"><article class="memo"><div class="memo-head"><span>${E.kicker}</span><span>Q${S.q}</span></div><div class="memo-body"><h2>${E.title}</h2><p>${E.text(S)}</p>`;
+    if (!eventDone) html += `<div class="choices">` + E.choices.map((c, i) => `<button class="choice" data-choice="${i}"><b>${c.label}</b><span class="d">${c.desc}</span><span class="cost">${bandOf(c.band, S)}</span></button>`).join("") + `</div>`;
+    else html += `<div class="outcome"><p class="small muted">You chose: <b style="color:var(--ink)">${esc(S.log[S.log.length - 1].label)}</b></p>${eventMsg}</div>`;
+    html += `</div></article></section>`;
+  }
+  html += `<section class="rep stack">`;
+  if (!h) {
+    html += `<div class="panel"><h2>Where you start</h2><p style="margin-top:8px">Last year the company had a person check every AI denial, with about 10 minutes per case. There was no training program and no spot checks.</p>
+      <p class="small muted" style="margin-top:10px">The board expects about ${money(P.planBase)} in net savings per quarter, and it raises that target 1.5% every quarter.</p></div>`;
+  } else {
+    const tmin = LEVERS.target.options[h.policy.target].min;
+    html += `<div class="panel"><h2>What happened in Q${h.q}</h2>${lastNotes ? `<p class="notes" style="margin-top:8px">${lastNotes}</p>` : ""}<ul class="impacts" style="margin-top:8px">${impacts(S, h)}</ul></div>
+      <div class="panel"><h3>Money in Q${h.q}</h3>${ledger(h)}</div>
+      <div class="panel"><h3>Operations in Q${h.q}</h3><div class="kpis" style="margin-top:10px">
+        ${kpi("Time per case", h.m == null ? "No review" : fmtMin(h.m), h.m != null && h.m < tmin ? "Rushed: less than planned" : "As planned", h.m != null && h.m < tmin ? "warn" : "")}
+        ${kpi("Reviewers", String(Math.round(h.heads)), `About ${Math.round(Math.min(h.rho, 1.5) * 100)}% busy`, h.rho > 0.9 ? "bad" : h.rho > 0.8 ? "warn" : "")}
+        ${kpi("AI mistakes found", pct(h.reportedErr), "Only mistakes someone caught")}
+        ${kpi("Spot-check result", h.audit ? pct(h.audit.est) : "No data", h.audit ? "Estimated share of final denials that were wrong" : "Turn on spot checks to see this")}
+      </div></div>`;
+    html += chartBlock("c1", "Net savings vs. the board's plan ($M)", [["--s1", "Your result"], ["--s3", "Board's plan", 1]]);
+    html += chartBlock("c2", "How often is the AI wrong? (%)", [["--s2", "AI mistakes found"], ["--s1", "Spot-check estimate"]], "\"Mistakes found\" only counts what someone caught. Spot checks estimate the real number.");
+  }
+  html += `</section><section class="lev panel"><h2>Your Q${S.q} decisions</h2><p class="small muted">Read each option and choose one in each of the 6 sections.</p>`;
+  if (S.flags.forceAll) html += `<div class="notice">Because of the lawsuit settlement, a person must check every AI denial.</div>`;
+  if (lawOn && !S.flags.paper) html += `<div class="notice bad">The new state law is in effect: a person must check every AI denial. Breaking it costs a $3M fine every quarter.</div>`;
+  if (lawOn && S.flags.paper) html += `<div class="notice">Batch sign-off is in effect: one medical director approves AI denials in bulk.</div>`;
+  if (S.flags.quotaPauseQ === S.q) html += `<div class="notice">Time targets are paused this quarter, so reviewers take the time they need.</div>`;
+  LEVER_KEYS.forEach((key, idx) => {
+    const lv = LEVERS[key];
+    html += `<fieldset class="lever ${pol[key] ? "done" : ""}" data-lever="${key}"><legend><span class="lnum">${idx + 1}</span>${lv.label}</legend><p class="help">${lv.help}</p><div class="opts">` + Object.entries(lv.options).map(([v, o]) => {
+      const dis = !eventDone || (key === "review" && S.flags.forceAll && v !== "all");
+      const was = prevPol && prevPol[key] === v ? `<span class="lastq">Last quarter</span>` : "";
+      return `<label class="opt">${was}<input type="radio" id="${key}-${v}" name="${key}" value="${v}" ${pol[key] === v ? "checked" : ""} ${dis ? "disabled" : ""}><span class="radio"></span><span class="n">${o.name}</span><span class="d">${o.desc}</span><span class="cost">${o.band}</span></label>`;
+    }).join("") + `</div></fieldset>`;
+  });
+  const heads = Math.round(S.heads);
+  html += `<fieldset class="lever ${pol.hire !== null ? "done" : ""}" data-lever="hire"><legend><span class="lnum">6</span>Change your team size?</legend><p class="help">You have ${heads} reviewers. Each costs $30K a quarter. New hires cost $12K each and start next quarter. Layoffs happen right away and cost $15K each in severance.</p><div class="opts">` +
+    HIRE_CHOICES.map(n => {
+      const dis = !eventDone || (n < 0 && heads + n < 1);
+      const was = prevPol && prevPol.hire === n ? `<span class="lastq">Last quarter</span>` : "";
+      const name = n < 0 ? `Lay off ${-n}` : n > 0 ? `Hire ${n}` : "Keep the team as is";
+      const desc = n < 0 ? `Go down to ${heads + n} reviewers now.` : n > 0 ? `Grow to ${heads + n} reviewers next quarter.` : `Stay at ${heads} reviewers.`;
+      const cost = n < 0 ? `${money(-n * P.severance)} now · saves ${money(-n * P.reviewerCostQ)} a quarter` : n > 0 ? `${money(n * P.hireCost)} now · ${money(n * P.reviewerCostQ)} more a quarter` : "$0";
+      return `<label class="opt">${was}<input type="radio" id="hire-${n}" name="hire" value="${n}" ${pol.hire === n ? "checked" : ""} ${dis ? "disabled" : ""}><span class="radio"></span><span class="n">${name}</span><span class="d">${desc}</span><span class="cost">${cost}</span></label>`;
+    }).join("") + `</div></fieldset>`;
+  html += `</section></div>`;
+  app.innerHTML = html;
+  bar.hidden = false;
+  bar.innerHTML = `<div class="confirm-in"><div class="progress"><span class="pbar"><span id="pfill"></span></span><button type="button" class="linkbtn" id="pickNote"></button></div><button class="btn primary" id="commit">Confirm Q${S.q}</button></div>`;
+  bindQuarter(); refreshReady();
+  if (h) drawPlayCharts();
+}
+function kpi(k, v, s, cls = ""){ return `<div class="kpi"><div class="k">${k}</div><div class="v ${cls ? "t-" + cls : ""}">${v}</div><div class="s">${s}</div></div>`; }
+function pickNote(){
+  if (!eventDone) return "Respond to the surprise first";
+    return nChosen() < 6 ? `${nChosen()} of 6 chosen · go to next ↓` : "All set";
+}
+function drawPlayCharts(){
+  const H = S.history, pad = a => a.concat(Array(Math.max(0, P.quarters - a.length)).fill(null));
+  drawChart(document.getElementById("c1"), [
+    { data: pad(H.map(h => h.profit / 1e6)), color: "--s1", fill: 1 }, { data: Array.from({ length: P.quarters }, (_, i) => P.planBase * Math.pow(1 + P.planGrowth, i) / 1e6), color: "--s3", dash: 1 }]);
+  drawChart(document.getElementById("c2"), [
+    { data: pad(H.map(h => h.reportedErr * 100)), color: "--s2" },
+    { data: pad(H.map(h => h.audit ? h.audit.est * 100 : null)), err: pad(H.map(h => h.audit ? h.audit.ci * 100 : null)), color: "--s1" }]);
+}
+function refreshReady(){
+  const c = document.getElementById("commit"); if (!c) return;
+  c.disabled = !ready();
+  document.getElementById("pickNote").textContent = pickNote();
+  document.getElementById("pfill").style.width = (nChosen() / 6 * 100) + "%";
+  app.querySelectorAll("[data-lever]").forEach(f => f.classList.toggle("done", pol[f.dataset.lever] != null));
+}
+function bindQuarter(){
+  app.querySelectorAll("[data-choice]").forEach(b => b.onclick = () => {
+    eventMsg = resolveEvent(S, curEvent, +b.dataset.choice); eventDone = true;
+    if (S.flags.forceAll) pol.review = "all";
+    renderQuarter();
+  });
+  app.querySelectorAll("input[type=radio]").forEach(r => r.onchange = () => { pol[r.name] = r.name === "hire" ? +r.value : r.value; refreshReady(); });
+  document.getElementById("pickNote").onclick = () => {
+    const target = !eventDone ? app.querySelector(".ev") : app.querySelector("[data-lever]:not(.done)") || document.getElementById("commit");
+    if (target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  document.getElementById("commit").onclick = () => {
+    if (!ready()) return;
+    prevPol = { ...pol };
+    const h = simulateQuarter(S, { ...pol });
+    const bits = [];
+    if (h.laid) bits.push(`${h.laid} reviewers were laid off.`);
+    if (h.quit >= 0.5) bits.push(`About ${Math.round(h.quit)} reviewer${Math.round(h.quit) > 1 ? "s" : ""} quit.`);
+    if (h.hires) bits.push(`${h.hires} new reviewer${h.hires > 1 ? "s" : ""} start next quarter.`);
+    if (h.q === 4) bits.push("Yearly sign-up season ended. Some members switched insurers based on how you treated them.");
+    lastNotes = bits.join(" ");
+    window.scrollTo(0, 0);
+    if (S.over || S.q > P.quarters) renderDebrief(); else beginQuarter();
+  };
+}
+
+/* ---- Debrief ---- */
+function narrative(S, R, sc, rsc){
+  const H = S.history, out = [];
+  let gq = null, gap = 0; H.forEach(h => { const g = h.wrongShare - h.reportedErr; if (g > gap) { gap = g; gq = h; } });
+  if (gq && gap > 0.06) out.push(`<b>Your screen looked better than reality.</b> In Q${gq.q} your screen said the AI got ${pct(gq.reportedErr)} of its denials wrong. The real number was <b>${pct(gq.wrongShare)}</b>. A mistake only counts as "found" when someone looks. ${gq.reviewed < 1 ? "No one was looking." : "Your reviewers were missing most of them."} Less checking made the number look better, not worse.`);
+  const fast = H.filter(h => h.m != null && h.m < 3);
+  if (fast.length) { const w = fast.reduce((a, b) => b.m < a.m ? b : a);
+    out.push(`<b>Checking turned into rubber-stamping.</b> In Q${w.q} reviewers had only ${fmtMin(w.m)} per case. At that speed a person can't really read a medical file, so most wrong denials went straight to patients. A 2023 news investigation (S3) reported insurance doctors spending about 1.2 seconds per case.`); }
+  const vc = S.flags.vendorChoice;
+  if (vc === "accept") { const a = H.filter(h => h.q >= 4 && h.audit);
+    out.push(a.length ? `<b>Spot checks caught a hidden problem.</b> The new AI version quietly made more mistakes. Your spot checks were the only thing that could see it, and they also helped retrain the AI.`
+      : `<b>A hidden problem went unnoticed.</b> The new AI version you accepted quietly made more mistakes. With no spot checks, nothing on your screen could show it.`); }
+  else if (vc === "shadow") out.push(`<b>Testing the new AI first paid off.</b> For $300K you caught most of its new mistakes before patients felt them.`);
+  if (Math.max(...H.map(h => h.compl)) > 0.5) out.push(`<b>Your team started trusting the AI too much.</b> Under time pressure and without training, people stop questioning a machine that is usually right. Psychologists call this automation bias (S10).`);
+  const hot = H.filter(h => h.rho > 0.9).length;
+  if (hot >= 2) out.push(`<b>Overwork made itself worse.</b> Your team was overloaded for ${hot} quarters. Tired people quit, and every person who left added more work for those who stayed.`);
+  if (S.lawQ) { const nc = H.filter(x => x.nonCompliant).length;
+    if (nc) out.push(`<b>Earlier choices came back.</b> When the new law required human review, you didn't have enough reviewers, and new hires take a quarter to start. You paid ${money(nc * 3e6)} in fines and lost political standing.`);
+    if (S.flags.paper) out.push(`<b>Following the law "on paper" changed nothing for patients.</b> One person signing hundreds of cases is still a rubber stamp, and it raised your risk of a news scandal.`); }
+  const early = H.filter(h => h.q <= 4).reduce((a, h) => a + h.profit - h.plan, 0);
+  if (early > 3e6 && S.eventCost > 5e6) out.push(`<b>Early savings came back as later costs.</b> You beat the plan by ${money(early)} in year 1. Later, fines, lawsuits and clean-up cost ${money(S.eventCost)}.`);
+  if (H.filter(h => h.audit).length >= 4) out.push(`<b>You measured what mattered.</b> Spot checks were the only number that didn't look better when checking got worse.`);
+  out.push(`<b>A strong path from the same start</b> scored <b>${rsc.d.overall.toFixed(0)}</b> (yours: <b>${sc.d.overall.toFixed(0)}</b>). It used a normal AI setting, had a person check every AI denial with plenty of time per case, paid for practice and rotation, ran large spot checks, hired before the busy season, and chose the long-term fix for each surprise.`);
+  return out;
+}
+function society(S){
+  const H = S.history, tot = H.reduce((a, h) => a + h.escWrong, 0), ser = H.reduce((a, h) => a + h.escH, 0);
+  return [
+    `<b>Patients:</b> about <b>${fmtRound(tot)}</b> people were wrongly refused care they needed. About <b>${fmtRound(ser)}</b> of them needed serious care, such as a nursing home after a hospital stay, cancer treatment, or mental-health care. Some appealed and won. Many gave up.`,
+    `<b>Public trust:</b> ${S.mem >= 60 ? "people still see your company as fair." : S.mem >= 40 ? "trust in your company has slipped." : "your company has become a symbol of \"AI denying care\" in the news and online."}${S.lostMembers > 0 ? ` About ${fmtRound(S.lostMembers)} members left for other insurers.` : ""}`,
+    `<b>Politics:</b> ${S.reg >= 60 ? "officials see you as a model for responsible AI use." : S.reg >= 40 ? "officials are cautious about you." : "lawmakers point to your company when they argue for tougher AI rules."}${S.flags.lawChoice === "contest" ? " You also lobbied against a patient-protection law." : ""}`,
+    `<b>Doctors & hospitals:</b> ${S.prov >= 60 ? "doctors trust your decisions." : S.prov >= 40 ? "doctors are frustrated with you." : "doctors see you as an obstacle to their patients' care."}`,
+    `<b>Your staff:</b> ${S.morale >= 60 ? "your team is proud of its work." : S.morale >= 40 ? "your team is tired." : "your team is burned out, and many have left."}`
+  ];
+}
+function fmtRound(x){ return x >= 1000 ? (Math.round(x / 100) * 100).toLocaleString("en-US") : Math.round(x).toLocaleString("en-US"); }
+function totals(X){
+  const H = X.history, s = f => H.reduce((a, h) => a + f(h), 0);
+  return { saved: s(h => h.avoided), staff: s(h => h.br.reviewers + h.br.extra + h.br.training + h.br.staffChange), other: s(h => h.br.appeals + h.br.vendor + h.br.lostMembers),
+    fines: s(h => h.br.events + h.br.fines), net: s(h => h.profit), plan: s(h => h.plan) };
+}
+
+function renderDebrief(){
+  bar.hidden = true;
+  const R = runReference(S.seed), sc = computeScores(S), rsc = computeScores(R);
+  const lost = !!S.over, T = totals(S), RT = totals(R);
+  const why = lost ? (S.over.type === "board" ? "The board removed you because results stayed too far below its plan." : "The state government ordered your company to remove you.") : "You made it through all 8 quarters.";
+  const news = S.log.filter(l => l.headline);
+  let html = `<section class="verdict"><div><p class="eyebrow">Debrief · ${CO}</p><h1 style="margin-top:8px">${lost ? "Removed in Q" + S.over.q : "Two years complete"}</h1><p>${why} All six areas count equally.${lost ? " Being removed early lowers your score." : ""}</p></div>
+    <div class="scorebox"><span class="stamp ${lost ? "lost" : "won"}">${lost ? "REMOVED" : "COMPLETE"}</span><span class="big">${sc.d.overall.toFixed(0)}</span><span class="of">out of 100 · strong path ${rsc.d.overall.toFixed(0)}</span></div></section>`;
+  html += `<div class="dgrid"><div class="panel"><h2>Your impact</h2><ul class="society" style="margin-top:10px">${society(S).map(x => `<li>${x}</li>`).join("")}</ul>
+    ${news.length ? `<h3 style="margin-top:18px">In the news</h3><ul class="news">${news.map(l => `<li><span>Q${l.q}</span>${esc(l.headline)}</li>`).join("")}</ul>` : ""}</div>
+    <div class="stack"><div class="panel"><h2>Scorecard</h2><div class="score-head" style="margin-top:10px"><span style="text-align:left">Area</span><span>You</span><span>Strong</span></div>` +
+    DIMS.map(([k, n, d]) => `<div class="score-row"><div class="lbl"><b>${n}</b><span>${d}</span></div><div class="val">${sc.d[k].toFixed(0)}</div><div class="val ref">${rsc.d[k].toFixed(0)}</div><div class="meter"><span style="width:${sc.d[k]}%"></span><i style="left:${rsc.d[k]}%"></i></div></div>`).join("") +
+    `<p class="small muted" style="margin-top:8px">The bar is your score. The thin line marks the strong path.</p></div>
+    <div class="panel"><h2>Two years of money</h2><table class="ledger" style="margin-top:8px"><tr><td></td><td class="muted">You</td><td class="muted">Strong path</td></tr>
+      ${[["Savings from denials", T.saved, RT.saved], ["Staff, training & hiring", -T.staff, -RT.staff], ["Appeals, vendor & lost members", -T.other, -RT.other], ["Fines, lawsuits & one-time costs", -T.fines, -RT.fines]]
+        .map(([l, a, b]) => `<tr><td>${l}</td><td>${money(a)}</td><td>${money(b)}</td></tr>`).join("")}
+      <tr class="total"><td>Net result</td><td>${money(T.net)}</td><td>${money(RT.net)}</td></tr>
+      <tr class="plan"><td>Board's plan${lost ? " (quarters played)" : ""}</td><td>${money(T.plan)}</td><td>${money(RT.plan)}</td></tr></table></div></div></div>`;
+  html += `<div class="panel" style="margin-bottom:16px"><h2>Why it turned out this way</h2><ul class="narr" style="margin-top:10px">${narrative(S, R, sc, rsc).map(x => `<li>${x}</li>`).join("")}</ul></div>`;
+  html += `<div class="dgrid">${chartBlock("d1", "What your screen showed vs. the truth (%)", [["--s2", "AI mistakes found (your screen)"], ["--stamp", "Real AI mistake rate"], ["--s3", "Real rate, strong path", 1]])}
+    ${chartBlock("d2", "Patients wrongly refused care (thousands)", [["--stamp", "You"], ["--s3", "Strong path", 1]])}</div>`;
+  html += `<div class="panel" style="margin-bottom:16px"><h2>Your decisions and surprises</h2><div class="tablewrap" style="margin-top:8px"><table class="log"><tr><th>Q</th><th>AI</th><th>Human check</th><th>Time</th><th>Training</th><th>Spot checks</th><th>Surprise → your response</th></tr>` +
+    S.history.map(h => { const ev = S.log.find(l => l.q === h.q); const p = h.policy;
+      return `<tr><td class="mono">${h.q}</td><td>${LEVERS.ai.options[p.ai].name}</td><td>${LEVERS.review.options[h.effReview].name}${h.paper ? " (batch sign-off)" : ""}</td><td>${LEVERS.target.options[p.target].name}</td><td>${LEVERS.training.options[p.training].name}</td><td>${LEVERS.audit.options[p.audit].name}</td>
+      <td>${ev ? `<b>${EVENTS[ev.id].title}</b> → ${esc(ev.label)}<div class="small muted">Why it happened: ${esc(ev.why)}</div>` : "—"}</td></tr>`; }).join("") + `</table></div></div>`;
+  html += `<div class="panel" style="margin-bottom:16px"><h2>Talk about it</h2><ol class="narr" style="margin-top:10px">
+    <li>Which number on your screen did you trust most? When did it stop telling the truth?</li>
+    <li>The AI was the same for everyone. What really decided how many patients were hurt: the AI, or the people and rules around it?</li>
+    <li>Pick one surprise. How did the cheap fix and the long-term fix play out for patients, politics and your staff?</li>
+    <li>If you were designing this system as an engineer, where would you add a warning light, a feedback loop, or a safety margin?</li></ol></div>`;
+  html += `<div class="panel" style="margin-bottom:16px"><details><summary>Where the numbers come from</summary><p class="small muted" style="margin:8px 0">Each number in the code is labeled as from a source (S), calculated from sources (D), or a teaching estimate (E).</p><div class="tablewrap"><table class="log" style="min-width:0">
+    <tr><th>What</th><th>Value</th><th>Type</th></tr>
+    <tr><td>Pre-approval requests per quarter</td><td class="mono">${fmtInt(P.baseVolume)}</td><td><span class="tag">D</span> S1</td></tr>
+    <tr><td>Share the AI wants to deny (normal setting)</td><td class="mono">8%</td><td><span class="tag">E</span> based on S1 (6.4%)</td></tr>
+    <tr><td>Share of AI denials that are wrong (normal)</td><td class="mono">18%</td><td><span class="tag">E</span> based on S2 (13%)</td></tr>
+    <tr><td>Appeals that patients win</td><td class="mono">81.7%</td><td><span class="tag">S</span> S1</td></tr>
+    <tr><td>Reviewer cost per quarter</td><td class="mono">${money(P.reviewerCostQ)}</td><td><span class="tag">D</span> S9</td></tr>
+    <tr><td>Medical spending saved per denial</td><td class="mono">$1,500</td><td><span class="tag">E</span></td></tr>
+    <tr><td>Chance of catching a mistake vs. time per case</td><td>falls fast below ~5 min</td><td><span class="tag">E</span> based on S3, S11</td></tr>
+    <tr><td>Decision deadline</td><td class="mono">${P.turnaroundStd} days</td><td><span class="tag">S</span> S6</td></tr>
+    <tr><td>Fines, lawsuits, public and political reactions</td><td>various</td><td><span class="tag">E</span></td></tr>
+  </table></div></details></div>`;
+  html += `<div class="actions"><button class="btn primary lg" id="again">Play again</button><button class="btn lg" id="same">Replay with the same surprises</button></div>`;
+  app.innerHTML = html;
+  const pad = a => a.concat(Array(Math.max(0, P.quarters - a.length)).fill(null));
+  drawChart(document.getElementById("d1"), [
+    { data: pad(S.history.map(h => h.reportedErr * 100)), color: "--s2" },
+    { data: pad(S.history.map(h => h.wrongShare * 100)), color: "--stamp", fill: 1 },
+    { data: pad(R.history.map(h => h.wrongShare * 100)), color: "--s3", dash: 1 }]);
+  drawChart(document.getElementById("d2"), [
+    { data: pad(S.history.map(h => h.escWrong / 1000)), color: "--stamp", fill: 1 },
+    { data: pad(R.history.map(h => h.escWrong / 1000)), color: "--s3", dash: 1 }]);
+  document.getElementById("again").onclick = () => startGame(newSeed());
+  document.getElementById("same").onclick = () => startGame(S.seed);
+  window._redraw = () => renderDebrief();
+}
+
+document.getElementById("footer").innerHTML = `<p><b>For teaching only.</b> ${CO} is made up. The numbers are simplified estimates chosen to show how the system behaves. They are not predictions and do not describe any real company. Lawsuits and news reports cited below involve claims and reporting, not court findings, unless stated.</p>
+<details><summary>Sources</summary><ol>${SOURCES.map(([k, t]) => `<li><b>${k}</b> ${esc(t)}</li>`).join("")}</ol></details>`;
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (S && document.getElementById("c1")) drawPlayCharts(); }, 150); });
+renderIntro();
+})();
+</script>
+</body>
+</html>
